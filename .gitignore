@@ -67,6 +67,18 @@ AGENTS.md
 .cursorignore
 .cursorindexingignore
 
+# Local HLFIR allocation analyzer demo artifacts and drafts.
+/hello
+/normal
+/optimized
+/hello.f90
+/first.f90
+/test.mlir
+/test_opt.f90.save
+/outputs/
+/hflir_alloc/
+/mlir/examples/MyPass/
+
 #==============================================================================#
 # Directories to ignore (do not add trailing '/'s, they skip symlinks).
 #==============================================================================#
