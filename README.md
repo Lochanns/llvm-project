@@ -1,44 +1,118 @@
-# The LLVM Compiler Infrastructure
 
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/llvm/llvm-project/badge)](https://securityscorecards.dev/viewer/?uri=github.com/llvm/llvm-project)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/8273/badge)](https://www.bestpractices.dev/projects/8273)
-[![libc++](https://github.com/llvm/llvm-project/actions/workflows/libcxx-build-and-test.yaml/badge.svg?branch=main&event=schedule)](https://github.com/llvm/llvm-project/actions/workflows/libcxx-build-and-test.yaml?query=event%3Aschedule)
+# FLANG Allocation Analyser
 
-Welcome to the LLVM project!
+This project is a small allocation-analysis demo built around LLVM Flang and Fortran array expressions. The main idea is to show how high-level Fortran array operations can sometimes create hidden temporary arrays, which may increase memory usage and reduce performance.
 
-This repository contains the source code for LLVM, a toolkit for the
-construction of highly optimized compilers, optimizers, and run-time
-environments.
+The project was developed inside a local LLVM/Flang checkout, but the demo itself only needs a few files to be tested. The full LLVM source tree, build folder, and install folder are not required for evaluation.
 
-The LLVM project has multiple components. The core of the project is
-itself called "LLVM". This contains all of the tools, libraries, and header
-files needed to process intermediate representations and convert them into
-object files. Tools include an assembler, disassembler, bitcode analyzer, and
-bitcode optimizer.
+## What This Project Does
 
-C-like languages use the [Clang](https://clang.llvm.org/) frontend. This
-component compiles C, C++, Objective-C, and Objective-C++ code into LLVM bitcode
--- and from there into object files, using LLVM.
+Fortran allows clean array expressions such as:
 
-Other components include:
-the [libc++ C++ standard library](https://libcxx.llvm.org),
-the [LLD linker](https://lld.llvm.org), and more.
+```fortran
+A = B + C
+This is readable and compact, but for large arrays it may create a temporary array internally. This project demonstrates that problem and prints a simple report explaining where such hidden allocations may happen.
 
-## Getting the Source Code and Building LLVM
+The analyzer currently:
 
-Consult the
-[Getting Started with LLVM](https://llvm.org/docs/GettingStarted.html#getting-the-source-code-and-building-llvm)
-page for information on building and running LLVM.
+scans a Fortran source file,
+detects simple allocation-heavy patterns,
+reports likely hidden temporary allocations,
+classifies allocations as necessary or probably unnecessary,
+suggests a loop-based transformation for simple array expressions.
+Main Files
+File	Description
+hlfir_report.py	Python script that generates the hidden allocation report.
+test.f90	Original Fortran program containing allocation-heavy examples.
+test_opt.f90	Optimized Fortran example using an explicit loop.
+.gitignore	Prevents build files, binaries, and generated files from being committed.
+README.md	Explains the project and how to run it.
+Why This Project Is Useful
+In compiler pipelines such as LLVM Flang, high-level Fortran code is lowered into FIR/HLFIR and then optimized. During this process, some array expressions may require temporary storage.
 
-For information on how to contribute to the LLVM project, please take a look at
-the [Contributing to LLVM](https://llvm.org/docs/Contributing.html) guide.
+This project gives a simple demonstration of that issue. It helps show why hidden allocations matter and how some expressions can be rewritten to avoid unnecessary temporaries.
 
-## Getting in touch
+This is not yet a full LLVM compiler pass. It is a working prototype that explains the concept clearly and can be extended later into a real HLFIR/MLIR-based analysis.
 
-Join the [LLVM Discourse forums](https://discourse.llvm.org/), [Discord
-chat](https://discord.gg/xS7Z362),
-[LLVM Office Hours](https://llvm.org/docs/GettingInvolved.html#office-hours) or
-[Regular sync-ups](https://llvm.org/docs/GettingInvolved.html#online-sync-ups).
+How To Run
+Make sure Python 3 is installed.
 
-The LLVM project has adopted a [code of conduct](https://llvm.org/docs/CodeOfConduct.html) for
-participants to all modes of communication within the project.
+Then run:
+
+python3 hlfir_report.py
+The script reads:
+
+test.f90
+and prints the hidden allocation report in the terminal.
+
+Example Output
+The analyzer detects this expression:
+
+A = B + C
+and reports it as a likely hidden allocation:
+
+Line 22: A = B + C generates 3.8147 MB temporary array allocation
+Classification: Probably unnecessary
+Reason: Elemental expression creates intermediate array
+It also suggests replacing it with an explicit loop:
+
+do i = 1, n
+   A(i) = B(i) + C(i)
+end do
+Optional Compile Test
+If gfortran is installed, you can compile and run the original Fortran program:
+
+gfortran test.f90 -O0 -o normal
+./normal
+Compile and run the optimized version:
+
+gfortran test_opt.f90 -O3 -o optimized
+./optimized
+If LLVM Flang is available, you can also try:
+
+flang-new test.f90 -O0 -o normal
+flang-new test_opt.f90 -O3 -o optimized
+./normal
+./optimized
+macOS Note
+On macOS, if gfortran gives an error like:
+
+library not found for -lSystem
+compile using the Xcode SDK path:
+
+gfortran test.f90 -O0 -o normal -isysroot $(xcrun --show-sdk-path)
+gfortran test_opt.f90 -O3 -o optimized -isysroot $(xcrun --show-sdk-path)
+Files That Should Not Be Committed
+The following files and folders are local build outputs and are not needed for evaluation:
+
+build/
+install/
+normal
+optimized
+hello
+*.mlir
+*.fir
+*.o
+*.mod
+Only the source/demo files should be pushed to GitHub.
+
+Current Limitations
+This project is currently a prototype. It uses simple Python pattern matching instead of directly parsing HLFIR or MLIR.
+
+Current limitations:
+
+It does not parse real HLFIR/MLIR files.
+It does not run as an LLVM or Flang compiler pass.
+It focuses on simple allocation patterns.
+The reported allocation size is illustrative for the sample program.
+Future Improvements
+Possible future improvements include:
+
+reading actual HLFIR/MLIR generated by Flang,
+detecting more temporary-producing expressions,
+producing JSON or HTML reports,
+adding automated tests,
+integrating the analysis into a real Flang/LLVM pass.
+Summary
+This project demonstrates how readable Fortran array expressions can sometimes hide temporary allocations. The analyzer reports these cases in a simple format and suggests an explicit loop transformation for one common pattern.
+
